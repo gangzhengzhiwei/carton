@@ -3,12 +3,12 @@
 Carton is a minecraft modpack file manager.
 ##### It is in very early-development now.
 
-#Install
+# Install
 First,using rustup (https://rustup.rs/) to install rust toolchain for your machine.
 Second,download source and unzip.
 Then,use `cargo build --release` to build.Target file will be in the `project_folder/target/release/carton.XXX`.
 
-#Use
+# Use
 A carton modpack project has three profiles: release,dev and common.
 Release profile includes files which only will be appear in the release modpack and loadered by user.
 Dev profile includes files which only will be appear in the developing environment.(Such as ProbeJs mod)
@@ -21,12 +21,12 @@ Common profile includes file which uses in all these two profiles.
 `carton help` will show the help text.
 
 
-#Features
+# Features
 Add and Download mods through url.
 Push profile to game instance.
 
 
-#Futures
+# Futures
 Search and Install mods on Curseforge and Modrinth.
 Pull changes from game instance.
 Export the project.
