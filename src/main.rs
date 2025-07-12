@@ -39,8 +39,8 @@ async fn main(){
         "a"=>operator_add(),
         "delete"=>operator_delete(),
         "d"=>operator_delete(),
-        "push"=>operator_push(),
-        "ph"=>operator_push(),
+        "push"=>operator_push().await,
+        "ph"=>operator_push().await,
         _=>{
             println!("Unknown arg: {}",args[1]);
             exit(0);

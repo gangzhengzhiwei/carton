@@ -171,7 +171,7 @@ fn modify_modloader_version(modpack:&mut ModPack) {
     };
     println!("Successfully modify ModLoader Version to {}",modpack.modloader.get_version());
 }
-pub fn operator_push() {
+pub async fn operator_push() {
     let args:Vec<String>=std::env::args().collect();
     let packworkspace=std::env::current_dir().unwrap();
     let mut profile=args.get(2).expect("Invalied profile!").to_owned();
@@ -223,18 +223,31 @@ pub fn operator_push() {
     copy_dir(&packworkspace.join("common"), &instance_dir).expect("Error in copy dir!");
     copy_dir(&packworkspace.join(&profile), &instance_dir).expect("Error in copy dir!");
     //install mods
-    for entry in fs::read_dir(&instance_dir.join("mods")).unwrap() {
+    let mut tasks=vec![];
+    let client=Client::new();
+    let mod_folder=instance_dir.to_owned().join("mods");
+    for entry in fs::read_dir(&mod_folder).unwrap() {
         let entry=entry.unwrap();
         let file_name=entry.file_name().into_string().unwrap();
         if entry.file_type().unwrap().is_file()&&file_name.ends_with(".toml") {
-            let resource=fs::read_to_string(&instance_dir.join("mods").join(file_name)).unwrap();
+            let resource=fs::read_to_string(&mod_folder.join(file_name)).unwrap();
             let resource:Resource=toml::from_str(resource.as_str()).unwrap();
+            fs::remove_file(entry.path()).unwrap();
+            let mod_folder_clone=mod_folder.clone();
+            let client_clone=client.clone();
             match resource.source {
                 Source::Curseforge(_curseforge_file) =>todo!(),
                 Source::Modrinth(_modrinth_file) => todo!(),
-                Source::Url(_url_file) => todo!(),
+                Source::Url(url_file) => {
+                    tasks.push(tokio::spawn(async move{
+                        download_file(client_clone,url_file.url,mod_folder_clone,4).await;
+                    }));
+                },
             }
         }
+    }
+    for task in tasks {
+        task.await.expect("Errror in downloading mods!");
     }
     println!("Pushing {} profile successfully!",profile);
 }

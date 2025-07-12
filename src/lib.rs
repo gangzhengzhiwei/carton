@@ -1,7 +1,9 @@
 pub mod operator;
 use std::{fs::{self, create_dir_all}, io::stdin, path::{Path, PathBuf}, process::exit};
 
+use reqwest::{header::{CONTENT_LENGTH, RANGE, USER_AGENT}, Client, Response};
 use serde::{Deserialize, Serialize};
+use tokio::io::AsyncWriteExt;
 pub const VERSION:&str="0.1.0";
 #[derive(Deserialize,Serialize)]
 pub struct GameInstance{
@@ -114,4 +116,44 @@ fn copy_dir_inner(src:impl AsRef<Path>,dst:impl AsRef<Path>,count:i32)->std::io:
         }
     }
     Ok(())
+}
+pub async fn download_file(client:Client,url:String,output_dir:PathBuf,threads:usize){
+    let response=client.head(&url).header(USER_AGENT, "gangzhengzhiwei/carton").send().await.expect("No connection");
+    let file_name=prase_filename(&response);
+    let output_dir=output_dir.join(file_name);
+    let total_size = response
+        .headers()
+        .get(CONTENT_LENGTH)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|s| s.parse::<u64>().ok())
+        .unwrap_or(0);
+    let chunk_size=total_size/threads as u64;
+    let mut file=tokio::fs::File::create(output_dir).await.expect("Cannot open file!");
+    for i in 0..threads {
+        let start=i as u64 *chunk_size;
+        let end=if i==threads-1 {
+            total_size
+        }
+        else {
+            (i+1) as u64 * chunk_size-1
+        };
+        let chunk_response=client.get(&url).header(RANGE, format!("bytes={}-{}",start,end)).send().await.expect("No connection in chunks!");
+        let bytes=chunk_response.bytes().await.unwrap();
+        file.write_all(&bytes).await.unwrap();
+    }
+}
+pub fn prase_filename(response:&Response)->String {
+    if let Some(s)=response.headers().get(reqwest::header::CONTENT_DISPOSITION)
+    .and_then(|v| v.to_str().ok())
+        .and_then(|s| {
+            s.split("filename=").nth(1)
+                .map(|name| name.trim_matches('"').to_string())
+        }) {
+            s
+    }
+    else {
+        let final_url=response.url();
+        let file_name=final_url.path_segments().and_then(|segments|segments.last()).expect("Error in prase file name!");
+        file_name.to_string()
+    }
 }
