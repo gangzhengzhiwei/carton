@@ -123,6 +123,7 @@ pub async fn download_file(client:Client,source:Source,output_dir:PathBuf,thread
     let url;
     let file_name;
     let response;
+    let total_size:u64;
     match source {
         Source::Curseforge(_curseforge_file) => todo!(),
         Source::Modrinth(modrinth_file) => {
@@ -133,20 +134,30 @@ pub async fn download_file(client:Client,source:Source,output_dir:PathBuf,thread
             url=files[0].get("url").unwrap().as_str().unwrap().to_string();
             file_name=files[0].get("filename").unwrap().as_str().unwrap().to_string();
             response=client.head(&url).header(USER_AGENT, "gangzhengzhiwei/carton").send().await.expect("No connection");
+            total_size = response
+                .headers()
+                .get(CONTENT_LENGTH)
+                .and_then(|v| v.to_str().ok())
+                .and_then(|s| s.parse::<u64>().ok())
+                .unwrap_or(0);
+            let expect_size=files[0].get("size").unwrap().as_u64().unwrap();
+            if total_size!= expect_size{
+                panic!("Error in downloading from modrinth version_id: {} .Size not correct.Get {} .Expect {} ",modrinth_file.version_id,total_size,expect_size);
+            }
         },
         Source::Url(url_file) => {
             url=url_file.url;
             response=client.head(&url).header(USER_AGENT, "gangzhengzhiwei/carton").send().await.expect("No connection");
             file_name=prase_filename(&response);
+            total_size = response
+                .headers()
+                .get(CONTENT_LENGTH)
+                .and_then(|v| v.to_str().ok())
+                .and_then(|s| s.parse::<u64>().ok())
+                .unwrap_or(0);
         },
     }
     let output_dir=output_dir.join(file_name);
-    let total_size = response
-        .headers()
-        .get(CONTENT_LENGTH)
-        .and_then(|v| v.to_str().ok())
-        .and_then(|s| s.parse::<u64>().ok())
-        .unwrap_or(0);
     let chunk_size=total_size/threads as u64;
     let mut file=tokio::fs::File::create(output_dir).await.expect("Cannot open file!");
     for i in 0..threads {
