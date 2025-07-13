@@ -41,7 +41,9 @@ pub fn operator_add() {
 }
 /// Split input in %xx;yy;zz
 /// 
-/// For curseforge and modrinth source: first_value is project ID,second_value is file ID,third_value is name
+/// For curseforge source: first_value is project ID,second_value is file ID,third_value is name
+/// 
+/// For modrinth souce: first_value is version ID,second_value is name,no third_value
 /// 
 /// For url source: first_value is url,second_value is name,no third_value.
 fn split_input(first_value:&mut String,second_value:&mut String,third_value:&mut String,input_str:&String) {
@@ -74,16 +76,15 @@ fn get_from_curseforge(modpack:&ModPack,input_str:&String)-> Resource {
     Resource {name,source:Source::Curseforge(CurseforgeFile { project_id, file_id })}
 }
 fn get_from_modrinth(modpack:&ModPack,input_str:&String)-> Resource {
-    let mut project_id=String::new();
     let mut file_id=String::new();
     let mut name=String::new();
     if input_str.starts_with('%') {
-        split_input(&mut project_id, &mut file_id, &mut name,input_str);
+        split_input( &mut file_id, &mut name,&mut String::new(),input_str);
     }
     else {
         search_from_modrinth(modpack, &input_str);
     }
-    Resource {name,source:Source::Modrinth(ModrinthFile { project_id, file_id })}
+    Resource {name,source:Source::Modrinth(ModrinthFile {  version_id: file_id })}
 }
 fn get_from_url(input_str:&String)-> Resource {
     let mut url=String::new();
@@ -147,8 +148,7 @@ pub struct CurseforgeFile{
 }
 #[derive(Serialize,Deserialize)]
 pub struct ModrinthFile{
-    pub project_id:String,
-    pub file_id:String
+    pub version_id:String
 }
 #[derive(Serialize,Deserialize)]
 pub struct UrlFile{

@@ -1,5 +1,5 @@
 use std::{env, fs::read_dir};
-use crate::{operator::{help::push_help, mc::input_mc_version, res::{Resource, Source}}, *};
+use crate::{operator::{help::push_help, mc::input_mc_version, res::Resource}, *};
 
 pub fn operator_init(){
     println!("Init a ModPack.");
@@ -235,15 +235,9 @@ pub async fn operator_push() {
             fs::remove_file(entry.path()).unwrap();
             let mod_folder_clone=mod_folder.clone();
             let client_clone=client.clone();
-            match resource.source {
-                Source::Curseforge(_curseforge_file) =>todo!(),
-                Source::Modrinth(_modrinth_file) => todo!(),
-                Source::Url(url_file) => {
-                    tasks.push(tokio::spawn(async move{
-                        download_file(client_clone,url_file.url,mod_folder_clone,4).await;
-                    }));
-                },
-            }
+            tasks.push(tokio::spawn(async move{
+                download_file(client_clone,resource.source,mod_folder_clone,4).await;
+            }))
         }
     }
     for task in tasks {

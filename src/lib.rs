@@ -4,6 +4,8 @@ use std::{fs::{self, create_dir_all}, io::stdin, path::{Path, PathBuf}, process:
 use reqwest::{header::{CONTENT_LENGTH, RANGE, USER_AGENT}, Client, Response};
 use serde::{Deserialize, Serialize};
 use tokio::io::AsyncWriteExt;
+
+use crate::operator::res::Source;
 pub const VERSION:&str="0.1.0";
 #[derive(Deserialize,Serialize)]
 pub struct GameInstance{
@@ -117,9 +119,27 @@ fn copy_dir_inner(src:impl AsRef<Path>,dst:impl AsRef<Path>,count:i32)->std::io:
     }
     Ok(())
 }
-pub async fn download_file(client:Client,url:String,output_dir:PathBuf,threads:usize){
-    let response=client.head(&url).header(USER_AGENT, "gangzhengzhiwei/carton").send().await.expect("No connection");
-    let file_name=prase_filename(&response);
+pub async fn download_file(client:Client,source:Source,output_dir:PathBuf,threads:usize){
+    let url;
+    let file_name;
+    let response;
+    match source {
+        Source::Curseforge(_curseforge_file) => todo!(),
+        Source::Modrinth(modrinth_file) => {
+            let api_resopnse=client.get(format!("https://api.modrinth.com/v2/version/{}",modrinth_file.version_id))
+            .header(USER_AGENT, "gangzhengzhiwei/carton").send().await.expect("No connection to modrinth!");
+            let result:serde_json::Value=serde_json::from_str(api_resopnse.text().await.unwrap().as_str()).unwrap();
+            let files=result.get("files").unwrap().as_array().unwrap();
+            url=files[0].get("url").unwrap().as_str().unwrap().to_string();
+            file_name=files[0].get("filename").unwrap().as_str().unwrap().to_string();
+            response=client.head(&url).header(USER_AGENT, "gangzhengzhiwei/carton").send().await.expect("No connection");
+        },
+        Source::Url(url_file) => {
+            url=url_file.url;
+            response=client.head(&url).header(USER_AGENT, "gangzhengzhiwei/carton").send().await.expect("No connection");
+            file_name=prase_filename(&response);
+        },
+    }
     let output_dir=output_dir.join(file_name);
     let total_size = response
         .headers()
