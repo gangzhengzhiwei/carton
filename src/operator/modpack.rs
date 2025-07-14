@@ -240,8 +240,11 @@ pub async fn operator_push() {
             }))
         }
     }
+    if !tasks.is_empty() {
+        println!("Downloading mods...");
+    }
     for task in tasks {
-        task.await.expect("Errror in downloading mods!");
+        task.await.expect("Error in downloading mods!");
     }
     println!("Pushing {} profile successfully!",profile);
 }

@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use tokio::io::AsyncWriteExt;
 
 use crate::operator::res::Source;
-pub const VERSION:&str="0.1.0";
+pub const VERSION:&str="0.1.1";
 #[derive(Deserialize,Serialize)]
 pub struct GameInstance{
     dir:String
@@ -32,6 +32,14 @@ impl ModLoader {
             Self::NeoForge(_)=>"NeoForge",
             Self::Fabric(_)=>"Fabric",
             Self::Quilt(_)=>"Quilt"
+        }
+    }
+    pub fn get_lowercase_name(&self)->&str {
+        match self {
+            Self::Forge(_)=>"forge",
+            Self::NeoForge(_)=>"neoforge",
+            Self::Fabric(_)=>"fabric",
+            Self::Quilt(_)=>"quilt"
         }
     }
     pub fn get_version(&self)->&String{
@@ -65,6 +73,9 @@ pub fn read_string()->String {
 }
 pub fn read_i64()->i64 {
     read_string().parse().expect("Expect an Integer!")
+}
+pub fn read_usize()->usize {
+    read_string().parse().expect("Expect a unsigned number!")
 }
 ///check the dir is empty or the dir does not exist.
 /// 

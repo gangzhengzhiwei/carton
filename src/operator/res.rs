@@ -1,6 +1,8 @@
 use std::fs::{self};
+use reqwest::header::USER_AGENT;
 use serde::{Deserialize, Serialize};
-use crate::{operator::help::{add_help, delete_help}, ModPack};
+use tokio::{runtime::Handle, task::block_in_place};
+use crate::{canceled, operator::help::{add_help, delete_help}, read_usize, ModPack};
 
 pub fn operator_add() {
     let args:Vec<String>=std::env::args().collect();
@@ -76,15 +78,17 @@ fn get_from_curseforge(modpack:&ModPack,input_str:&String)-> Resource {
     Resource {name,source:Source::Curseforge(CurseforgeFile { project_id, file_id })}
 }
 fn get_from_modrinth(modpack:&ModPack,input_str:&String)-> Resource {
-    let mut file_id=String::new();
-    let mut name=String::new();
+    let to_ret:Resource;
     if input_str.starts_with('%') {
-        split_input( &mut file_id, &mut name,&mut String::new(),input_str);
+        let mut version_id=String::new();
+        let mut name=String::new();
+        split_input( &mut version_id, &mut name,&mut String::new(),input_str);
+        to_ret=Resource {name,source:Source::Modrinth(ModrinthFile {  version_id })}
     }
     else {
-        search_from_modrinth(modpack, &input_str);
+        to_ret=block_in_place(move||{Handle::current().block_on(search_from_modrinth(modpack, &input_str))});
     }
-    Resource {name,source:Source::Modrinth(ModrinthFile {  version_id: file_id })}
+    to_ret
 }
 fn get_from_url(input_str:&String)-> Resource {
     let mut url=String::new();
@@ -100,8 +104,58 @@ fn get_from_url(input_str:&String)-> Resource {
 fn search_from_curseforge(_modpack:&ModPack,_name:&String)-> Resource {
     todo!()
 }
-fn search_from_modrinth(_modpack:&ModPack,_name:&String)-> Resource {
-    todo!();
+async fn search_from_modrinth(modpack:&ModPack,name:&String) ->Resource{
+    let facets=format!(r#"[["versions:{}"],["categories:{}"],["project_type:mod"]]"#,modpack.mc_version,modpack.modloader.get_lowercase_name());
+    let params=[("query",name),("facets",&facets)];
+    let client=reqwest::Client::new();
+    let mut mods=Vec::new();
+    let response=client.get("https://api.modrinth.com/v2/search").header(USER_AGENT, "gangzhengzhiwei/carton")
+        .query(&params).send().await.expect("No connection to modrinth!");
+    let body:serde_json::Value=response.json().await.unwrap();
+    let hits=body.get("hits").unwrap();
+    for m in hits.as_array().unwrap() {
+        let title=m.get("title").unwrap().as_str().unwrap().to_string();
+        let project_id=m.get("project_id").unwrap().as_str().unwrap().to_string();
+        mods.push((title,project_id));
+    }
+    if mods.is_empty() {
+        panic!("No one matches! Are you sure the mod is existed?")
+    }
+    println!("Searched result from modrinth:");
+    for (index,(title,_)) in mods.iter().enumerate() {
+        println!("{}): {}",index+1,title);
+    }
+    println!("Type the index to choose.Type '0' to cancel.");
+    let index=read_usize();
+    if index==0 {
+        canceled();
+    }
+    let (name,project_id)=&mods[index-1];
+    let query=[("loaders",format!(r#"["{}"]"#,modpack.modloader.get_lowercase_name())),("game_versions",format!(r#"["{}"]"#,modpack.mc_version))];
+    let response=client.get(format!("https://api.modrinth.com/v2/project/{}/version",project_id))
+        .query(&query).header(USER_AGENT, "gangzhengzhiwei/carton").send().await.expect("No connection to modrinth");
+    let mut versions=Vec::new();
+    let body:serde_json::Value=response.json().await.unwrap();
+    let array=body.as_array().unwrap();
+    for version in array {
+        let version_id=version.get("id").unwrap().as_str().unwrap();
+        let version_type=version.get("version_type").unwrap().as_str().unwrap();
+        let version_number=version.get("version_number").unwrap().as_str().unwrap();
+        versions.push((version_id,version_type,version_number));
+    }
+    if versions.is_empty() {
+        panic!("This project has no one matched versions!")
+    }
+    println!("Versions matched in mod {} .Type a index to choose.Type '0' to cancel.",&name);
+    for (i,(_,version_type,version_number)) in versions.iter().enumerate() {
+        println!("{}) Version: {} Type: {}",i+1,version_number,version_type);
+    }
+    let index=read_usize();
+    if index==0 {
+        canceled();
+    }
+    let (version_id,_,_)=versions[index-1];
+    Resource{name:name.to_owned(),source:Source::Modrinth(ModrinthFile { version_id:version_id.to_string() })}
 }
 pub fn operator_delete() {
     let args:Vec<String>=std::env::args().collect();

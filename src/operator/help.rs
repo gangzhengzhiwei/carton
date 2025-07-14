@@ -1,4 +1,7 @@
+use crate::VERSION;
+
 pub fn operator_help() {
+    println!("Carton {}",VERSION);
     println!("Help:\n\
     carton [operator arg] [other args]\n\
     Operator args:
@@ -21,7 +24,7 @@ pub fn add_help() {
     modrinth(m): Search and download mods from modrinth.com.
     curseforge(c): Search and download mods from curseforge.com.
     url(u): Use url directly.(Not recommend) Warning:Carton will not check it and can not sure whether it is a computer virus!!!\n\
-    Name or url: Name of the mod or the url(if use url source).Carton will search and add them.(The searching feature is WIP!)
+    Name or url: Name of the mod or the url(if use url source).Carton will search and add them.(Only modrinth searching features is available,Curseforge searching is WIP!)
     You can use the %[project_id]%[file_id]%[mod_name] for curseforge source,%[version_id]&[mod_name] for modrinth source,selecting mod directly.(Carton will not check it.Input carefully!)
     Or use the %[url]%[mod_name] for url source.
     Profile: Which profile you want to add in.
