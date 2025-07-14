@@ -218,10 +218,11 @@ pub async fn operator_push() {
             }
         }
     }
-    println!("Cleanning game instance successfully!");
+    print!("Cleanning game instance... ");
     //copy
     copy_dir(&packworkspace.join("common"), &instance_dir).expect("Error in copy dir!");
     copy_dir(&packworkspace.join(&profile), &instance_dir).expect("Error in copy dir!");
+    println!("Done");
     //install mods
     let mut tasks=vec![];
     let client=Client::new();
@@ -241,11 +242,12 @@ pub async fn operator_push() {
         }
     }
     if !tasks.is_empty() {
-        println!("Downloading mods...");
+        print!("Downloading mods... ");
     }
     for task in tasks {
         task.await.expect("Error in downloading mods!");
     }
+    println!("Done");
     println!("Pushing {} profile successfully!",profile);
 }
 const KEEP_IN_PUSH: [&str; 11]=["usernamecache.json","options.txt","usercache.json","resourcepacks","saves","schematics","screenshots","logs","backups","PCL","xaero"];

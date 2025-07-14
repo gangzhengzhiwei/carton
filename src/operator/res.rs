@@ -34,7 +34,8 @@ pub fn operator_add() {
         _=>panic!("Invalied source!")
     };
     let mod_toml=toml::to_string(&resource).unwrap();
-    let mod_path=packworkspace.join(profile).join("mods").join(resource.name.to_owned()+".toml");
+    let mod_name=resource.name.replace(r#":"#, r#" "#)+".toml";
+    let mod_path=packworkspace.join(profile).join("mods").join(mod_name);
     if mod_path.exists() {
         panic!("Already has a mod with same name in the profile!");
     }
@@ -165,6 +166,7 @@ pub fn operator_delete() {
         delete_help();
         return;
     }
+    let name=name.replace(r#":"#,r#" "#);
     let mut profile=args.get(3).expect("Invalided profile!").clone();
     match profile.as_str() {
         "common"=>(),
