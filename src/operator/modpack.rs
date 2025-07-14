@@ -1,4 +1,4 @@
-use std::{env, fs::read_dir};
+use std::{env, fs::read_dir, io::Write};
 use crate::{operator::{help::push_help, mc::input_mc_version, res::Resource}, *};
 
 pub fn operator_init(){
@@ -219,6 +219,7 @@ pub async fn operator_push() {
         }
     }
     print!("Cleanning game instance... ");
+    std::io::stdout().flush().unwrap();
     //copy
     copy_dir(&packworkspace.join("common"), &instance_dir).expect("Error in copy dir!");
     copy_dir(&packworkspace.join(&profile), &instance_dir).expect("Error in copy dir!");
@@ -236,18 +237,23 @@ pub async fn operator_push() {
             fs::remove_file(entry.path()).unwrap();
             let mod_folder_clone=mod_folder.clone();
             let client_clone=client.clone();
-            tasks.push(tokio::spawn(async move{
-                download_file(client_clone,resource.source,mod_folder_clone,4).await;
-            }))
+            tasks.push(tokio::spawn(
+                download_file(client_clone,resource.source,mod_folder_clone,4)
+            ));
         }
     }
+    let mut has_downloading_tasks=false;
     if !tasks.is_empty() {
-        print!("Downloading mods... ");
+        has_downloading_tasks=true;
+        print!("Downloading {} mods... ",tasks.len());
+        std::io::stdout().flush().unwrap();
     }
     for task in tasks {
         task.await.expect("Error in downloading mods!");
     }
-    println!("Done");
+    if has_downloading_tasks {
+        println!("Done");
+    }
     println!("Pushing {} profile successfully!",profile);
 }
 const KEEP_IN_PUSH: [&str; 11]=["usernamecache.json","options.txt","usercache.json","resourcepacks","saves","schematics","screenshots","logs","backups","PCL","xaero"];

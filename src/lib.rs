@@ -168,9 +168,10 @@ pub async fn download_file(client:Client,source:Source,output_dir:PathBuf,thread
                 .unwrap_or(0);
         },
     }
-    let output_dir=output_dir.join(file_name);
+    let file_dir=&output_dir.join(&file_name);
     let chunk_size=total_size/threads as u64;
-    let mut file=tokio::fs::File::create(output_dir).await.expect("Cannot open file!");
+    let mut file=tokio::fs::File::create(file_dir).await.expect("Cannot open file!");
+    let mut tasks=Vec::new();
     for i in 0..threads {
         let start=i as u64 *chunk_size;
         let end=if i==threads-1 {
@@ -179,10 +180,25 @@ pub async fn download_file(client:Client,source:Source,output_dir:PathBuf,thread
         else {
             (i+1) as u64 * chunk_size-1
         };
-        let chunk_response=client.get(&url).header(RANGE, format!("bytes={}-{}",start,end)).send().await.expect("No connection in chunks!");
-        let bytes=chunk_response.bytes().await.unwrap();
-        file.write_all(&bytes).await.unwrap();
+        tasks.push(tokio::task::spawn(download_chunk(output_dir.clone(),file_name.clone(),client.clone(),url.clone(),start, end,i)));
     }
+    for task in tasks {
+        task.await.expect("Error in downloading chunk!");
+    }
+    for i in 0..threads {
+        let tmp_file_dir=&output_dir.join(format!("{}.tmp{}",file_name,i.to_string()));
+        let chunk=fs::read(tmp_file_dir).unwrap();
+        fs::remove_file(tmp_file_dir).unwrap();
+        file.write_all(&chunk).await.unwrap();
+        file.flush().await.unwrap();
+    }
+}
+async fn download_chunk(output_dir:PathBuf,file_name:String,client:Client,url:String,start:u64,end:u64,index:usize) {
+    let chunk_response=client.get(url).header(RANGE, format!("bytes={}-{}",start,end))
+        .header(USER_AGENT, "gangzhengzhiwei/carton").send().await.expect("No connection in chunks!");
+    let bytes=chunk_response.bytes().await.unwrap();
+    let mut tmpfile=tokio::fs::File::create(output_dir.join(format!("{}.tmp{}",file_name,index.to_string()))).await.expect("Cannot open tmp file!");
+    tmpfile.write_all(&bytes).await.unwrap();
 }
 pub fn prase_filename(response:&Response)->String {
     if let Some(s)=response.headers().get(reqwest::header::CONTENT_DISPOSITION)
