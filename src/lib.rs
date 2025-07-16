@@ -3,10 +3,11 @@ use std::{fs::{self, create_dir_all}, io::stdin, path::{Path, PathBuf}, process:
 
 use reqwest::{header::{CONTENT_LENGTH, RANGE, USER_AGENT}, Client, Response};
 use serde::{Deserialize, Serialize};
-use tokio::io::AsyncWriteExt;
+use sha2::{Digest, Sha512};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 use crate::operator::res::Source;
-pub const VERSION:&str="0.1.1";
+pub const VERSION:&str="0.1.2";
 #[derive(Deserialize,Serialize)]
 pub struct GameInstance{
     dir:String
@@ -135,6 +136,7 @@ pub async fn download_file(client:Client,source:Source,output_dir:PathBuf,thread
     let file_name;
     let response;
     let total_size:u64;
+    let sha512;
     match source {
         Source::Curseforge(_curseforge_file) => todo!(),
         Source::Modrinth(modrinth_file) => {
@@ -144,6 +146,7 @@ pub async fn download_file(client:Client,source:Source,output_dir:PathBuf,thread
             let files=result.get("files").unwrap().as_array().unwrap();
             url=files[0].get("url").unwrap().as_str().unwrap().to_string();
             file_name=files[0].get("filename").unwrap().as_str().unwrap().to_string();
+            sha512=files[0].get("hashes").unwrap().get("sha512").unwrap().as_str().unwrap().to_string();
             response=client.head(&url).header(USER_AGENT, "gangzhengzhiwei/carton").send().await.expect("No connection");
             total_size = response
                 .headers()
@@ -157,6 +160,7 @@ pub async fn download_file(client:Client,source:Source,output_dir:PathBuf,thread
             }
         },
         Source::Url(url_file) => {
+            sha512="-1".to_string();
             url=url_file.url;
             response=client.head(&url).header(USER_AGENT, "gangzhengzhiwei/carton").send().await.expect("No connection");
             file_name=prase_filename(&response);
@@ -168,6 +172,11 @@ pub async fn download_file(client:Client,source:Source,output_dir:PathBuf,thread
                 .unwrap_or(0);
         },
     }
+    let threads=if total_size<40960 {
+        1
+    } else {
+        threads
+    };
     let file_dir=&output_dir.join(&file_name);
     let chunk_size=total_size/threads as u64;
     let mut file=tokio::fs::File::create(file_dir).await.expect("Cannot open file!");
@@ -188,9 +197,25 @@ pub async fn download_file(client:Client,source:Source,output_dir:PathBuf,thread
     for i in 0..threads {
         let tmp_file_dir=&output_dir.join(format!("{}.tmp{}",file_name,i.to_string()));
         let chunk=fs::read(tmp_file_dir).unwrap();
-        fs::remove_file(tmp_file_dir).unwrap();
         file.write_all(&chunk).await.unwrap();
-        file.flush().await.unwrap();
+        fs::remove_file(tmp_file_dir).unwrap();
+    }
+    file.flush().await.unwrap();
+    let mut file=tokio::fs::File::open(file_dir).await.unwrap();
+    if sha512!="-1" {
+        let mut hasher=Sha512::new();
+        let mut buffer=[0u8;8192];
+        loop {
+            let byte_read=file.read(&mut buffer).await.expect("Cannot check file sha512!");
+            if byte_read==0 {
+                break;
+            }
+            hasher.update(&buffer[..byte_read]);
+        }
+        let final_sha512=hex::encode(hasher.finalize());
+        if sha512!=final_sha512 {
+            panic!("Sha512 for {} doesn't match!",file_name);
+        }
     }
 }
 async fn download_chunk(output_dir:PathBuf,file_name:String,client:Client,url:String,start:u64,end:u64,index:usize) {
